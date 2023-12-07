@@ -1,6 +1,9 @@
 // @ts-check
 
-// This year the extra requirement is for the solution to be run in the chrome inspector by copy pasting the code directly
+// This year the extra requirements are:
+// - the solution must run in the chrome inspector by copy pasting the code directly
+// - the function must be able to solve both parts with minimal changes
+// - execution time < 50ms
 
 const day = location.pathname.split('day/').pop();
 const isPart2 = location.hash === '#part2';
@@ -207,12 +210,7 @@ solutions.day5 = (input, part2 = false) => {
       return new Range(this.start, this.end);
     }
   }
-  const printState = (st) => {
-    console.dir(st.type);
-    console.log('Ranges');
-    console.table(st.ranges);
-    console.groupEnd(st.type);
-  };
+
   const sections = input.split('\n\n');
   const seeds = strUtils.toNumberArray(sections.shift().split(':').pop());
   const state = {
@@ -279,14 +277,11 @@ solutions.day5 = (input, part2 = false) => {
     return map;
   }, {});
 
-  printState(state);
   while (state.type !== 'location') {
     const transformer = transformers[state.type];
 
     state.type = transformer.target;
     state.ranges = state.ranges.flatMap(transformer.transformRange);
-
-    printState(state);
   }
 
   return state.ranges.sort((rA, rB) => rA.start - rB.start)[0].start;
@@ -311,12 +306,76 @@ solutions.day6 = (input, part2 = false) => {
   return total;
 };
 
+solutions.day7 = (input, part2 = false) => {
+  const CARDS = part2 ? 'AKQT98765432J' : 'AKQJT98765432';
+  const assingScore = ([first, second]) => {
+    switch (first) {
+      case 5:
+        return 1;
+      case 4:
+        return 2;
+      case 3:
+        return second === 2 ? 3 : 4;
+      case 2:
+        return second === 2 ? 5 : 6;
+      case 1:
+        return 7;
+    }
+  };
+
+  const sorter = (handA, handB) => {
+    if (handA.score === handB.score) {
+      let diffIndex = 0;
+      while (handA.cards[diffIndex] === handB.cards[diffIndex]) diffIndex++;
+
+      return (
+        CARDS.indexOf(handB.cards[diffIndex]) -
+        CARDS.indexOf(handA.cards[diffIndex])
+      );
+    } else {
+      return handB.score - handA.score;
+    }
+  };
+  const hands = strUtils.toLines(input);
+  const handsScores = hands.map((hand) => {
+    const [cards, bid] = hand.split(' ');
+    const cardsMap = cards.split('').reduce((map, card) => {
+      map[card] = map[card] + 1 || 1;
+      return map;
+    }, {});
+    let groups = [];
+    if (part2) {
+      const jokers = cardsMap['J'] || 0;
+      delete cardsMap['J'];
+      groups = Object.values(cardsMap).sort((a, b) => b - a);
+      groups[0] = groups[0] + jokers || jokers;
+    } else {
+      groups = Object.values(cardsMap).sort((a, b) => b - a);
+    }
+
+    const score = assingScore(groups);
+    return {
+      cards,
+      groups,
+      score,
+      bid: Number(bid),
+    };
+  });
+  const total = handsScores
+    .sort(sorter)
+    .reduce((sum, {bid}, index) => sum + (index + 1) * bid, 0);
+
+  return total;
+};
+
 if (solutions[`day${day}`]) {
   const input = window.test
     ? $$('pre > code')[isPart2 && day !== '5' ? 1 : 0].getInnerHTML()
     : await (await fetch(location.pathname + '/input')).text();
 
+  console.time('benchmark');
   const result = solutions[`day${day}`](input, isPart2);
+  console.timeEnd('benchmark');
   console.log(
     `Solution of day ${day}${isPart2 ? ' part2' : ''} is "${result}"`
   );
