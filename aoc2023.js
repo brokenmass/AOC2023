@@ -12,6 +12,10 @@ const strUtils = {
   toLines: (str) => str.trim().split('\n').filter(Boolean),
   toNumberArray: (str) => str.trim().split(/\s+/).map(Number),
 };
+const numUtils = {
+  gcd: (nA, nB) => (nB === 0 ? nA : numUtils.gcd(nB, nA % nB)),
+  lcm: (nA, nB) => (nA * nB) / numUtils.gcd(nA, nB),
+};
 
 const solutions = {};
 
@@ -170,10 +174,8 @@ solutions.day4 = (input, part2 = false) => {
     } else {
       if (ownWinningNumbers.length) {
         const score = 2 ** (ownWinningNumbers.length - 1);
-        console.log(cardInfo, score);
         return sum + score;
       } else {
-        console.log(cardInfo, 0);
         return sum;
       }
     }
@@ -366,6 +368,48 @@ solutions.day7 = (input, part2 = false) => {
     .reduce((sum, {bid}, index) => sum + (index + 1) * bid, 0);
 
   return total;
+};
+
+solutions.day8 = (input, part2 = false) => {
+  const [instructions, nodesData] = input.split('\n\n');
+
+  const nodeMap = strUtils.toLines(nodesData).reduce((map, line) => {
+    const [, name, left, right] = line.match(/(\w+) = \((\w+), (\w+)\)/i);
+    map[name] = {name, L: left, R: right, hasZ: name[2] === 'Z'};
+    return map;
+  }, {});
+
+  if (part2) {
+    let index = 0;
+    let currents = Object.values(nodeMap).filter(({name}) => name[2] === 'A');
+    const steps = [];
+    while (currents.length) {
+      const op = instructions[index % instructions.length];
+      currents = currents
+        .map((node) => nodeMap[node[op]])
+        .filter((node) => {
+          if (node.hasZ) {
+            steps.push(index + 1);
+            return false;
+          } else {
+            return true;
+          }
+        });
+      index++;
+    }
+    return steps.reduce((acc, step) => numUtils.lcm(acc, step), 1);
+  } else {
+    let index = 0;
+    let current = 'AAA';
+
+    while (current !== 'ZZZ') {
+      const op = instructions[index % instructions.length];
+      current = nodeMap[current][op];
+      index++;
+    }
+
+    return index;
+  }
 };
 
 if (solutions[`day${day}`]) {
