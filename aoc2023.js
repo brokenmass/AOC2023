@@ -412,9 +412,32 @@ solutions.day8 = (input, part2 = false) => {
   }
 };
 
+solutions.day9 = (input, part2 = false) => {
+  const data = strUtils.toLines(input).map(strUtils.toNumberArray);
+  const reduceDirection = part2 ? 'reduceRight' : 'reduce';
+  const multiplier = part2 ? -1 : 1;
+
+  return data.reduce((sum, row) => {
+    const rowResult = row[reduceDirection]((deltas, actual) => {
+      const expected = deltas[0] ?? 0;
+      const error = actual - expected;
+
+      deltas.push(0);
+
+      for (let i = deltas.length - 1; i >= 0; i--) {
+        deltas[i] +=
+          multiplier ** i * error + multiplier * (deltas[i + 1] ?? 0);
+      }
+      return deltas;
+    }, []);
+
+    return sum + rowResult[0];
+  }, 0);
+};
+
 if (solutions[`day${day}`]) {
   const input = window.test
-    ? $$('pre > code')[isPart2 && day !== '5' ? 1 : 0].getInnerHTML()
+    ? $$('pre > code')[isPart2 && !'5,9'.includes(day) ? 1 : 0].getInnerHTML()
     : await (await fetch(location.pathname + '/input')).text();
 
   console.time('benchmark');
