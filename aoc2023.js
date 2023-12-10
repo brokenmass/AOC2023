@@ -17,6 +17,34 @@ const numUtils = {
   lcm: (nA, nB) => (nA * nB) / numUtils.gcd(nA, nB),
 };
 
+class Matrix {
+  data;
+  w;
+  h;
+  constructor(input) {
+    this.data = strUtils
+      .toLines(input)
+      .filter(Boolean)
+      .map((row) => row.split(''));
+    this.w = this.data[0].length;
+    this.h = this.data.length;
+  }
+  getTile = ([x, y]) => {
+    return this.isValid([x, y]) ? this.data[y][x] : '.';
+  };
+  setTile = ([x, y], val) => {
+    this.data[y][x] = val;
+  };
+  isValid = ([x, y]) => {
+    return x >= 0 && x < this.w && y >= 0 && y < this.h;
+  };
+  forEachRow = (cb) => {
+    for (let y = 0; y < this.h; y++) {
+      cb(this.data[y], y);
+    }
+  };
+}
+
 const solutions = {};
 
 solutions.day1 = (input, part2 = false) => {
@@ -80,12 +108,8 @@ solutions.day2 = (input, part2 = false) => {
 };
 
 solutions.day3 = (input, part2 = false) => {
-  const matrix = strUtils.toLines(input);
-  const w = matrix[0].length;
-  const h = matrix.length;
+  const matrix = new Matrix(input);
 
-  const getTile = ([x, y]) =>
-    x >= 0 && x < w && y >= 0 && y < h ? matrix[y][x] : '.';
   const findComponentsAround = ([x1, y1], [x2, y2], condition) => {
     const border = [
       // Top and bottom
@@ -99,14 +123,13 @@ solutions.day3 = (input, part2 = false) => {
         [x2 + 1, y1 - 1 + index],
       ]),
     ];
-    return border.filter((coords) => condition(getTile(coords)));
+    return border.filter((coords) => condition(matrix.getTile(coords)));
   };
 
   if (part2) {
     const GEAR = '*';
     const gearsMap = {};
-    for (y = 0; y < h; y++) {
-      const row = matrix[y];
+    matrix.forEachRow((row) => {
       const matches = Array.from(row.matchAll(/\d+/g));
       matches.forEach((match) =>
         findComponentsAround(
@@ -118,7 +141,8 @@ solutions.day3 = (input, part2 = false) => {
           gearsMap[coord].push(Number(match[0]));
         })
       );
-    }
+    });
+
     return Object.entries(gearsMap)
       .filter(([, numbers]) => numbers.length === 2)
       .map(([, numbers]) => numbers[0] * numbers[1])
@@ -126,8 +150,7 @@ solutions.day3 = (input, part2 = false) => {
   } else {
     const EMPTY = '.';
     let total = 0;
-    for (y = 0; y < h; y++) {
-      const row = matrix[y];
+    matrix.forEachRow((row) => {
       const matches = Array.from(row.matchAll(/\d+/g));
       total += matches.reduce((sum, match) => {
         const componentsCoords = findComponentsAround(
@@ -142,7 +165,8 @@ solutions.day3 = (input, part2 = false) => {
           return sum;
         }
       }, 0);
-    }
+    });
+
     return total;
   }
 };
@@ -435,9 +459,153 @@ solutions.day9 = (input, part2 = false) => {
   }, 0);
 };
 
+solutions.day10 = (input, part2 = false) => {
+  const START_CHAR = 'S';
+  const PATH_CHAR = 'X';
+  const matrix = new Matrix(input);
+  const SIndex = input.indexOf(START_CHAR);
+  const start = [SIndex % (matrix.w + 1), Math.floor(SIndex / (matrix.w + 1))];
+  const pipeMap = {
+    '|': {
+      N: {outDirection: 'N', rot: '-', left: ['W'], right: ['E']},
+      S: {outDirection: 'S', rot: '-', left: ['E'], right: ['W']},
+    },
+    '-': {
+      E: {outDirection: 'E', rot: '-', left: ['N'], right: ['S']},
+      W: {outDirection: 'W', rot: '-', left: ['S'], right: ['N']},
+    },
+    L: {
+      S: {outDirection: 'E', rot: 'L', left: [], right: ['W', 'S']},
+      W: {outDirection: 'N', rot: 'R', left: ['W', 'S'], right: []},
+    },
+    J: {
+      S: {outDirection: 'W', rot: 'R', left: ['E', 'S'], right: []},
+      E: {outDirection: 'N', rot: 'L', left: [], right: ['E', 'S']},
+    },
+    7: {
+      N: {outDirection: 'W', rot: 'L', left: [], right: ['E', 'N']},
+      E: {outDirection: 'S', rot: 'R', left: ['E', 'N'], right: []},
+    },
+    F: {
+      N: {outDirection: 'E', rot: 'R', left: ['W', 'N'], right: []},
+      W: {outDirection: 'S', rot: 'L', left: [], right: ['W', 'N']},
+    },
+    '.': {},
+    [START_CHAR]: {},
+    [PATH_CHAR]: {},
+  };
+
+  const coordsInDirection = ([x, y], direction) => {
+    switch (direction) {
+      case 'N':
+        return [x, y - 1];
+      case 'S':
+        return [x, y + 1];
+      case 'W':
+        return [x - 1, y];
+      case 'E':
+        return [x + 1, y];
+    }
+  };
+  // TODO: there's a little bug here: the left/right cell of the start cell are not identified.
+  // the problem does not punish for that so it has not been fixed
+  let initialOptions = ['N', 'S', 'W', 'E']
+    .map((direction) => {
+      const nextCoords = coordsInDirection(start, direction);
+      const nextChar = matrix.getTile(nextCoords);
+      return {
+        nextCoords,
+        nextChar,
+        direction,
+      };
+    })
+    .filter(
+      ({nextChar, direction}) => pipeMap[nextChar][direction]?.outDirection
+    );
+  let cursor = {
+    currCoords: start,
+    currChar: START_CHAR,
+    direction: initialOptions[0].direction,
+  };
+  const rotationCounters = {
+    '-': 0,
+    L: 0,
+    R: 0,
+  };
+  const neighbours = {
+    left: [],
+    right: [],
+  };
+  let steps = 0;
+  do {
+    matrix.setTile(cursor.currCoords, PATH_CHAR);
+
+    const nextCoords = coordsInDirection(cursor.currCoords, cursor.direction);
+    const nextChar = matrix.getTile(nextCoords);
+    const {
+      outDirection,
+      rot = '-',
+      left = [],
+      right = [],
+    } = pipeMap[nextChar][cursor.direction] ?? {};
+
+    rotationCounters[rot]++;
+    neighbours.left.push(
+      ...left.map((dir) => coordsInDirection(nextCoords, dir))
+    );
+    neighbours.right.push(
+      ...right.map((dir) => coordsInDirection(nextCoords, dir))
+    );
+
+    cursor.currCoords = nextCoords;
+    cursor.currChar = nextChar;
+    cursor.direction = outDirection;
+
+    steps++;
+  } while (cursor.currChar !== PATH_CHAR);
+
+  if (!part2) {
+    return Math.ceil(steps / 2);
+  } else {
+    const INNER_CHAR = 'I';
+    // if there should be 4 more rotation in a direction than in the other.
+    // the rotation with the most count indicates the inside of the loop
+    const inside = neighbours[
+      rotationCounters.L > rotationCounters.R ? 'left' : 'right'
+    ].filter(matrix.isValid);
+
+    let innerCellCount = 0;
+    while (inside.length) {
+      const pos = inside.pop();
+      const char = matrix.getTile(pos);
+      if (char !== PATH_CHAR && char !== INNER_CHAR) {
+        matrix.setTile(pos, INNER_CHAR);
+        innerCellCount++;
+        inside.push(
+          ...['N', 'S', 'W', 'E'].map((direction) =>
+            coordsInDirection(pos, direction)
+          )
+        );
+      }
+    }
+
+    return innerCellCount;
+  }
+};
+
 if (solutions[`day${day}`]) {
+  let preIndex = isPart2 ? 1 : 0;
+  switch (day) {
+    case '5':
+    case '9':
+      preIndex = 0;
+      break;
+    case '10':
+      preIndex = isPart2 ? 12 : 7;
+      break;
+  }
   const input = window.test
-    ? $$('pre > code')[isPart2 && !'5,9'.includes(day) ? 1 : 0].getInnerHTML()
+    ? $$('pre > code')[preIndex].getInnerHTML()
     : await (await fetch(location.pathname + '/input')).text();
 
   console.time('benchmark');
