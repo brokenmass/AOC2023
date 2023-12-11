@@ -5,7 +5,7 @@
 // - the function must be able to solve both parts with minimal changes
 // - execution time < 50ms
 
-const day = location.pathname.split('day/').pop();
+const day = location.pathname.match(/day\/(\d+)/)[1];
 const isPart2 = location.hash === '#part2';
 
 const strUtils = {
@@ -507,8 +507,8 @@ solutions.day10 = (input, part2 = false) => {
         return [x + 1, y];
     }
   };
-  // TODO: there's a little bug here: the left/right cell of the start cell are not identified.
-  // the problem does not punish for that so it has not been fixed
+  // TODO: there's a little bug here: the left/right cells of the start cell are not identified.
+  // the problem does not punish for that so it has not been fixed (yet)
   let initialOptions = ['N', 'S', 'W', 'E']
     .map((direction) => {
       const nextCoords = coordsInDirection(start, direction);
@@ -593,11 +593,45 @@ solutions.day10 = (input, part2 = false) => {
   }
 };
 
+solutions.day11 = (input, part2 = false) => {
+  const matrix = new Matrix(input);
+  const starData = {x: {}, y: {}};
+  const stars = Array.from(input.matchAll(/#/g)).map(({index}) => {
+    const [x, y] = [index % (matrix.w + 1), Math.floor(index / (matrix.w + 1))];
+    starData.x[x] = starData.x[x] + 1 || 1;
+    starData.y[y] = starData.y[y] + 1 || 1;
+
+    return [x, y];
+  });
+  const count = stars.length;
+  const multiplier = isPart2 ? 1_000_000 : 2;
+  const total = ['x', 'y'].reduce((sum, axis) => {
+    const starAxisData = Object.entries(starData[axis]).sort(
+      ([a], [b]) => a - b
+    );
+    let [currentPos, leftCount] = starAxisData.shift();
+    while (starAxisData.length) {
+      const [nextPos, newStars] = starAxisData.shift();
+      const adjustedDelta = 1 + (nextPos - currentPos - 1) * multiplier;
+      const segment = adjustedDelta * leftCount * (count - leftCount);
+
+      sum += segment;
+
+      leftCount += newStars;
+      currentPos = nextPos;
+    }
+    return sum;
+  }, 0);
+
+  return total;
+};
+
 if (solutions[`day${day}`]) {
   let preIndex = isPart2 ? 1 : 0;
   switch (day) {
     case '5':
     case '9':
+    case '11':
       preIndex = 0;
       break;
     case '10':
@@ -606,7 +640,7 @@ if (solutions[`day${day}`]) {
   }
   const input = window.test
     ? $$('pre > code')[preIndex].getInnerHTML()
-    : await (await fetch(location.pathname + '/input')).text();
+    : await (await fetch(`/2023/day/${day}/input`)).text();
 
   console.time('benchmark');
   const result = solutions[`day${day}`](input, isPart2);
