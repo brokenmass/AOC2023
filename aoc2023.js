@@ -10,7 +10,8 @@ const isPart2 = location.hash === '#part2';
 
 const strUtils = {
   toLines: (str) => str.trim().split('\n').filter(Boolean),
-  toNumberArray: (str) => str.trim().split(/\s+/).map(Number),
+  toNumberArray: (str, separator = /\s+/) =>
+    str.trim().split(separator).map(Number),
 };
 const numUtils = {
   gcd: (nA, nB) => (nB === 0 ? nA : numUtils.gcd(nB, nA % nB)),
@@ -626,6 +627,90 @@ solutions.day11 = (input, part2 = false) => {
   return total;
 };
 
+solutions.day12 = (input, part2 = false) => {
+  // Performance of part2:
+  // with memoization: 1.2second
+  // with some euristic: 450ms
+  // with shorter cache key: 200ms
+  // With Map instead of plain object as cache: 120ms
+  // with some refactoring: 80ms
+  const SPRING_OPERATIONAL = '.';
+  const SPRING_DAMAGED = '#';
+  const SPRING_UNKNOWN = '?';
+  const lines = strUtils.toLines(input);
+  let cache = new Map();
+  let str = '';
+  let strLen = 0;
+  const countValid = (index, char, count, records, total) => {
+    const cacheKey = `${char}${index}|${total - count}`;
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey);
+    }
+    let result;
+    let same = 1;
+    if (index >= strLen) {
+      result = count === 0 && total === 0 ? 1 : 0;
+    } else if (strLen - index + count < total) {
+      result = 0;
+    } else if (char === SPRING_OPERATIONAL) {
+      do {
+        index++;
+      } while (str[index] === SPRING_OPERATIONAL);
+      if (count) {
+        const found = records[0];
+        if (count == found) {
+          result = countValid(
+            index,
+            str[index],
+            0,
+            records.slice(1),
+            total - 1 - found
+          );
+        } else {
+          result = 0;
+        }
+      } else {
+        result = countValid(index, str[index], 0, records, total);
+      }
+    } else if (char === SPRING_DAMAGED) {
+      do {
+        index++;
+        count++;
+      } while (str[index] === SPRING_DAMAGED);
+      if (!records.length || count > records[0]) {
+        result = 0;
+      } else {
+        result = countValid(index, str[index], count, records, total);
+      }
+    } else {
+      result =
+        countValid(index, SPRING_OPERATIONAL, count, records, total) +
+        countValid(index, SPRING_DAMAGED, count, records, total);
+    }
+
+    cache.set(cacheKey, result);
+    return result;
+  };
+
+  const total = lines.reduce((sum, line, index) => {
+    let [string, recordData] = line.split(' ');
+    if (part2) {
+      string = new Array(5).fill(string).join(SPRING_UNKNOWN);
+      recordData = new Array(5).fill(recordData).join(',');
+    }
+    const records = strUtils.toNumberArray(recordData, ',');
+    const broken = records.reduce((acc, count) => acc + count + 1, 0);
+    cache.clear();
+    // setting variables like this is ugly but performant (faster than passing them around or havig to create a closure)
+    str = string + SPRING_OPERATIONAL;
+    strLen = str.length;
+    const validOptions = countValid(0, str[0], 0, records, broken);
+    return sum + validOptions;
+  }, 0);
+
+  return total;
+};
+
 if (solutions[`day${day}`]) {
   let preIndex = isPart2 ? 1 : 0;
   switch (day) {
@@ -636,6 +721,9 @@ if (solutions[`day${day}`]) {
       break;
     case '10':
       preIndex = isPart2 ? 12 : 7;
+      break;
+    case '12':
+      preIndex = 1;
       break;
   }
   const input = window.test
